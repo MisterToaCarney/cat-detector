@@ -21,7 +21,6 @@ while True:
 
   resized = cv2.resize(frame, None, fx=0.5, fy=0.5)
   resized = resized[32*4:, :]
-
   results = model.predict(resized, device='cpu', imgsz=(resized.shape[0], resized.shape[1]))
   result = results[0]
 

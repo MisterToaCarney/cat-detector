@@ -17,7 +17,7 @@ while True:
   ret, frame = vcap.read()
 
   resized = cv2.resize(frame, None, fx=0.5, fy=0.5)
-  resized = resized[32*4, :] # crop
+  resized = resized[32*4:, :] # crop
 
   results = model.predict(resized, device='cpu', imgsz=(resized.shape[0], resized.shape[1]))
   result = results[0]
@@ -33,4 +33,4 @@ while True:
   
   if len(all_classes) > 0:
     classes_str = "_".join(all_classes)
-    cv2.imwrite(f"frames/{classes_str}-{frame_count}.jpg")
+    cv2.imwrite(f"frames/{classes_str}-{frame_count}.jpg", frame)
