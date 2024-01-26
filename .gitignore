@@ -191,3 +191,4 @@ images/
 frames/
 yolov8*.pt
 motion/
+detections/

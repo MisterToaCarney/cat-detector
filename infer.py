@@ -5,14 +5,17 @@ import collections
 from queue import Queue
 import numpy as np
 import threading
+import os
+import time
 
-frame_offset = 3
+frame_offset = 1
 frame_count = 0
 q = collections.deque(maxlen=frame_offset + 1)
 job_q = Queue()
-vcap = SecurityCapture(f"rtsp://{sys.argv[1]}@192.168.1.8/", 1)
-
+vcap = SecurityCapture(f"rtsp://{sys.argv[1]}@192.168.1.8/", 3)
 # vcap = cv2.VideoCapture(0)
+
+os.makedirs('detections/', exist_ok=True)
 
 mask = cv2.imread('mask.png')
 mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
@@ -43,9 +46,14 @@ def do_inference(queue: Queue):
     if len(jobs) == 0: continue
 
     dl = learn.dls.test_dl(jobs)
-    preds,_,dec_preds = learn.get_preds(dl=dl, with_decoded=True)
+    preds, _, dec_preds = learn.get_preds(dl=dl, with_decoded=True)
     predictions = [learn.dls.vocab[int(pred)] for pred in dec_preds]
     print(predictions)
+
+    for index, pred in enumerate(predictions):
+      if pred != 'cat': continue
+      cv2.imwrite(f"detections/detected_{int(time.time()*1000)}.jpg", jobs[index])
+
 
 inference_thread = threading.Thread(group=None, target=do_inference, args=(job_q,))
 inference_thread.start()
@@ -82,12 +90,12 @@ try:
       cropped = frame_fs[fs_start_y:fs_end_y, fs_start_x:fs_end_x]
       cropped = cv2.resize(cropped, [224,224])
       
-      cv2.rectangle(out, (start_x, start_y), (end_x, end_y), (0,0,255), 2)
-      cv2.imshow('cropped', cropped)
+      # cv2.rectangle(out, (start_x, start_y), (end_x, end_y), (0,0,255), 2)
+      # cv2.imshow('cropped', cropped)
       job_q.put_nowait(cropped)
 
-    cv2.imshow('frame', out)
-    if cv2.waitKey(1) == ord('q'): end()
+    # cv2.imshow('frame', out)
+    # if cv2.waitKey(1) == ord('q'): end()
 
 except KeyboardInterrupt:
   end()
