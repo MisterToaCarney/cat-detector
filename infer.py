@@ -25,6 +25,8 @@ event_count = 0
 latest_detection_image = None
 
 os.makedirs('detections/', exist_ok=True)
+os.makedirs('detections/cat/', exist_ok=True)
+os.makedirs('detections/not', exist_ok=True)
 
 mask = cv2.imread('mask.png')
 mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
@@ -58,11 +60,16 @@ def do_inference(queue: Queue):
     predictions = np.array([learn.dls.vocab[int(pred)] for pred in dec_preds])
 
     for index, pred in enumerate(predictions):
-      if pred != 'cat': continue
-      cv2.imwrite(f"detections/detected_{int(time.time()*1000)}.jpg", jobs[index])
+      confidence_int = int(np.rint(preds[index, list(learn.dls.vocab).index(pred)] * 100))
+      print(confidence_int)
+      if pred == 'cat':
+        cv2.imwrite(f"detections/cat/{confidence_int}_{int(time.time()*1000)}_cat.jpg", jobs[index])
+      elif pred == 'not':
+        cv2.imwrite(f"detections/not/{confidence_int}_{int(time.time()*1000)}_not.jpg", jobs[index])
     
-    with event_count_lock: event_count += np.sum(predictions == 'cat')
-    with latest_image_lock: latest_detection_image = jobs[np.flatnonzero(predictions == 'cat')[-1]]
+    if 'cat' in predictions:
+      with event_count_lock: event_count += np.sum(predictions == 'cat')
+      with latest_image_lock: latest_detection_image = jobs[np.flatnonzero(predictions == 'cat')[-1]]
 
 def measure_event_rate():
   global event_count, latest_detection_image
@@ -94,7 +101,7 @@ try:
 
     old_frame = frame_q.popleft()
     diff = cv2.absdiff(frame, old_frame)
-    diff = cv2.bitwise_and(mask, diff)
+    # diff = cv2.bitwise_and(mask, diff)
     diff = cv2.GaussianBlur(diff, (31, 31), 0)
     ret, diff = cv2.threshold(diff, 10, 255, cv2.THRESH_BINARY)
     contours, hr = cv2.findContours(diff, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
