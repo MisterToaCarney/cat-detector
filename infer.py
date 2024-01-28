@@ -10,10 +10,16 @@ import time
 
 frame_offset = 1
 frame_count = 0
-q = collections.deque(maxlen=frame_offset + 1)
+frame_q = collections.deque(maxlen=frame_offset + 1)
 job_q = Queue()
+
 vcap = SecurityCapture(f"rtsp://{sys.argv[1]}@192.168.1.8/", 3)
 # vcap = cv2.VideoCapture(0)
+
+event_count_lock = threading.Lock()
+event_count = 0
+
+terminating = threading.Event()
 
 os.makedirs('detections/', exist_ok=True)
 
@@ -25,7 +31,8 @@ _, mask = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)
 def end():
   vcap.release()
   cv2.destroyAllWindows()
-  job_q.put('kill')
+  terminating.set()
+  event_count_thread.join()
   inference_thread.join()
   exit()
 
@@ -33,30 +40,42 @@ def label_path_func(path): # this is required to load the learner
   return path.parent.name
 
 def do_inference(queue: Queue):
+  global event_count
   from fastai.vision.learner import load_learner
   learn = load_learner('models/catsec-v3.pkl')
   print("AI is loaded")
   while True:
+    if terminating.is_set(): return
+
     jobs = []
-    while not queue.empty(): 
-      job = queue.get()
-      if type(job) is str and job == 'kill': return
-      jobs.append(job)
+    while not queue.empty(): jobs.append(queue.get())
     
     if len(jobs) == 0: continue
 
     dl = learn.dls.test_dl(jobs)
-    preds, _, dec_preds = learn.get_preds(dl=dl, with_decoded=True)
-    predictions = [learn.dls.vocab[int(pred)] for pred in dec_preds]
-    print(predictions)
+    with learn.no_bar(): preds, _, dec_preds = learn.get_preds(dl=dl, with_decoded=True, inner=False)
+    predictions = np.array([learn.dls.vocab[int(pred)] for pred in dec_preds])
+
+    with event_count_lock: event_count += np.sum(predictions == 'cat')
 
     for index, pred in enumerate(predictions):
       if pred != 'cat': continue
       cv2.imwrite(f"detections/detected_{int(time.time()*1000)}.jpg", jobs[index])
 
+def measure_event_rate():
+  global event_count
+  while True:
+    if terminating.is_set(): return
+    time.sleep(1)
+    with event_count_lock:
+      print("Counts per second", event_count)
+      event_count = 0
+
 
 inference_thread = threading.Thread(group=None, target=do_inference, args=(job_q,))
+event_count_thread = threading.Thread(group=None, target=measure_event_rate)
 inference_thread.start()
+event_count_thread.start()
 
 try:
   while True:
@@ -64,10 +83,10 @@ try:
     ret, frame_fs = vcap.read()
     frame_orig = cv2.resize(frame_fs, [1280, 960])
     frame = cv2.cvtColor(frame_orig, cv2.COLOR_BGR2GRAY)
-    q.append(frame)
-    if len(q) <= frame_offset: continue
+    frame_q.append(frame)
+    if len(frame_q) <= frame_offset: continue
 
-    old_frame = q.popleft()
+    old_frame = frame_q.popleft()
     diff = cv2.absdiff(frame, old_frame)
     diff = cv2.bitwise_and(mask, diff)
     diff = cv2.GaussianBlur(diff, (31, 31), 0)
