@@ -47,7 +47,7 @@ def label_path_func(path): # this is required to load the learner
 def do_inference(queue: Queue):
   global event_count, latest_detection_image
   from fastai.vision.learner import load_learner
-  learn = load_learner('models/catsec-v3.pkl')
+  learn = load_learner('models/catsec-v4.pkl')
   print("AI is loaded")
   while True:
     if terminating.is_set(): return
