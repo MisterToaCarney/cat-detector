@@ -192,3 +192,4 @@ frames/
 yolov8*.pt
 motion/
 detections/
+config.py

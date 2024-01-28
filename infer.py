@@ -7,19 +7,22 @@ import numpy as np
 import threading
 import os
 import time
+import notifications
+
+vcap = SecurityCapture(f"rtsp://{sys.argv[1]}@192.168.1.8/", 3)
+# vcap = cv2.VideoCapture(0)
+
 
 frame_offset = 1
 frame_count = 0
 frame_q = collections.deque(maxlen=frame_offset + 1)
 job_q = Queue()
-
-vcap = SecurityCapture(f"rtsp://{sys.argv[1]}@192.168.1.8/", 3)
-# vcap = cv2.VideoCapture(0)
-
 event_count_lock = threading.Lock()
-event_count = 0
-
+latest_image_lock = threading.Lock()
 terminating = threading.Event()
+
+event_count = 0
+latest_detection_image = None
 
 os.makedirs('detections/', exist_ok=True)
 
@@ -40,35 +43,38 @@ def label_path_func(path): # this is required to load the learner
   return path.parent.name
 
 def do_inference(queue: Queue):
-  global event_count
+  global event_count, latest_detection_image
   from fastai.vision.learner import load_learner
   learn = load_learner('models/catsec-v3.pkl')
   print("AI is loaded")
   while True:
     if terminating.is_set(): return
-
     jobs = []
     while not queue.empty(): jobs.append(queue.get())
-    
     if len(jobs) == 0: continue
 
     dl = learn.dls.test_dl(jobs)
     with learn.no_bar(): preds, _, dec_preds = learn.get_preds(dl=dl, with_decoded=True, inner=False)
     predictions = np.array([learn.dls.vocab[int(pred)] for pred in dec_preds])
 
-    with event_count_lock: event_count += np.sum(predictions == 'cat')
-
     for index, pred in enumerate(predictions):
       if pred != 'cat': continue
       cv2.imwrite(f"detections/detected_{int(time.time()*1000)}.jpg", jobs[index])
+    
+    with event_count_lock: event_count += np.sum(predictions == 'cat')
+    with latest_image_lock: latest_detection_image = jobs[np.flatnonzero(predictions == 'cat')[-1]]
 
 def measure_event_rate():
-  global event_count
+  global event_count, latest_detection_image
   while True:
     if terminating.is_set(): return
     time.sleep(1)
     with event_count_lock:
       print("Counts per second", event_count)
+      if event_count > 1:
+        with latest_image_lock:
+          encoded_image = cv2.imencode(".jpg", latest_detection_image)[1].tobytes()
+          notifications.send_message_with_attachment("Cat detected!", encoded_image)
       event_count = 0
 
 
