@@ -100,7 +100,7 @@ try:
 
     old_frame = frame_q.popleft()
     diff = cv2.absdiff(frame, old_frame)
-    # diff = cv2.bitwise_and(mask, diff)
+    diff = cv2.bitwise_and(mask, diff)
     diff = cv2.GaussianBlur(diff, (31, 31), 0)
     ret, diff = cv2.threshold(diff, 10, 255, cv2.THRESH_BINARY)
     contours, hr = cv2.findContours(diff, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
