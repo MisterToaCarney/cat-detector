@@ -61,7 +61,6 @@ def do_inference(queue: Queue):
 
     for index, pred in enumerate(predictions):
       confidence_int = int(np.rint(preds[index, list(learn.dls.vocab).index(pred)] * 100))
-      print(confidence_int)
       if pred == 'cat':
         cv2.imwrite(f"detections/cat/{confidence_int}_{int(time.time()*1000)}_cat.jpg", jobs[index])
       elif pred == 'not':
