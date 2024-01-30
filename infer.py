@@ -47,7 +47,7 @@ def label_path_func(path): # this is required to load the learner
 def do_inference(queue: Queue):
   global event_count, latest_detection_image
   from fastai.vision.learner import load_learner
-  learn = load_learner('models/catsec-v4.pkl')
+  learn = load_learner('models/catsec-vit-v5.pkl')
   print("AI is loaded")
   while True:
     if terminating.is_set(): return
@@ -57,7 +57,10 @@ def do_inference(queue: Queue):
 
     dl = learn.dls.test_dl(jobs)
     with learn.no_bar(): preds, _, dec_preds = learn.get_preds(dl=dl, with_decoded=True, inner=False)
+    preds = np.array(preds)
     predictions = np.array([learn.dls.vocab[int(pred)] for pred in dec_preds])
+    detections = np.sum(preds > 0.98, axis=0)
+    print(detections)
 
     for index, pred in enumerate(predictions):
       confidence_int = int(np.rint(preds[index, list(learn.dls.vocab).index(pred)] * 100))
@@ -65,10 +68,13 @@ def do_inference(queue: Queue):
         cv2.imwrite(f"detections/cat/{confidence_int}_{int(time.time()*1000)}_cat.jpg", jobs[index])
       elif pred == 'not':
         cv2.imwrite(f"detections/not/{confidence_int}_{int(time.time()*1000)}_not.jpg", jobs[index])
+
+    num_cat_detections = detections[list(learn.dls.vocab).index('cat')]
     
-    if 'cat' in predictions:
-      with event_count_lock: event_count += np.sum(predictions == 'cat')
-      with latest_image_lock: latest_detection_image = jobs[np.flatnonzero(predictions == 'cat')[-1]]
+    if num_cat_detections > 0:
+      most_confident_job_index = preds.argmax(axis=0)[list(learn.dls.vocab).index('cat')]
+      with event_count_lock: event_count += num_cat_detections
+      with latest_image_lock: latest_detection_image = jobs[most_confident_job_index]
 
 def measure_event_rate():
   global event_count, latest_detection_image
@@ -76,13 +82,11 @@ def measure_event_rate():
     if terminating.is_set(): return
     time.sleep(1)
     with event_count_lock:
-      print("Counts per second", event_count)
       if event_count > 1:
         with latest_image_lock:
           encoded_image = cv2.imencode(".jpg", latest_detection_image)[1].tobytes()
           notifications.send_message_with_attachment("Cat detected!", encoded_image)
       event_count = 0
-
 
 inference_thread = threading.Thread(group=None, target=do_inference, args=(job_q,))
 event_count_thread = threading.Thread(group=None, target=measure_event_rate)
