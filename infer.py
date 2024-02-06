@@ -47,7 +47,7 @@ def label_path_func(path): # this is required to load the learner
 def do_inference(queue: Queue):
   global event_count, latest_detection_image
   from fastai.vision.learner import load_learner
-  learn = load_learner('models/catsec-vit-v5.pkl')
+  learn = load_learner('models/catsec-vit-v6.pkl')
   print("AI is loaded")
   while True:
     if terminating.is_set(): return
@@ -76,7 +76,7 @@ def do_inference(queue: Queue):
       with event_count_lock: event_count += num_cat_detections
       with latest_image_lock: latest_detection_image = jobs[most_confident_job_index]
 
-def measure_event_rate():
+def notification_handler():
   global event_count, latest_detection_image
   while True:
     if terminating.is_set(): return
@@ -89,7 +89,7 @@ def measure_event_rate():
       event_count = 0
 
 inference_thread = threading.Thread(group=None, target=do_inference, args=(job_q,))
-event_count_thread = threading.Thread(group=None, target=measure_event_rate)
+event_count_thread = threading.Thread(group=None, target=notification_handler)
 inference_thread.start()
 event_count_thread.start()
 
