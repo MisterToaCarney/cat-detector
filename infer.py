@@ -20,6 +20,7 @@ job_q = Queue()
 event_count_lock = threading.Lock()
 latest_image_lock = threading.Lock()
 terminating = threading.Event()
+GUI = os.environ.get("GUI", "0") == '1'
 
 event_count = 0
 latest_detection_image = None
@@ -125,12 +126,14 @@ try:
       cropped = frame_fs[fs_start_y:fs_end_y, fs_start_x:fs_end_x]
       cropped = cv2.resize(cropped, [224,224])
       
-      # cv2.rectangle(out, (start_x, start_y), (end_x, end_y), (0,0,255), 2)
-      # cv2.imshow('cropped', cropped)
+      if GUI:
+        cv2.rectangle(out, (start_x, start_y), (end_x, end_y), (0,0,255), 2)
+        cv2.imshow('cropped', cropped)
       job_q.put_nowait(cropped)
 
-    # cv2.imshow('frame', out)
-    # if cv2.waitKey(1) == ord('q'): end()
+    if GUI:
+      cv2.imshow('frame', out)
+      if cv2.waitKey(1) == ord('q'): end()
 
 except KeyboardInterrupt:
   end()
