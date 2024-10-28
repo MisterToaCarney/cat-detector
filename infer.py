@@ -8,6 +8,7 @@ import threading
 import os
 import time
 import notifications
+import random
 
 vcap = SecurityCapture(f"rtsp://{sys.argv[1]}@192.168.1.8/", 3)
 # vcap = cv2.VideoCapture(0)
@@ -55,6 +56,11 @@ def do_inference(queue: Queue):
     jobs = []
     while not queue.empty(): jobs.append(queue.get())
     if len(jobs) == 0: continue
+
+    # Randomly drop some frames to avoid overloading CPU
+    if len(jobs) > 300:
+      random.shuffle(jobs)
+      jobs = jobs[:300]
 
     dl = learn.dls.test_dl(jobs)
     with learn.no_bar(): preds, _, dec_preds = learn.get_preds(dl=dl, with_decoded=True, inner=False)
