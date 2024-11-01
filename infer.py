@@ -58,9 +58,9 @@ def do_inference(queue: Queue):
     if len(jobs) == 0: continue
 
     # Randomly drop some frames to avoid overloading CPU
-    if len(jobs) > 300:
+    if len(jobs) > 150:
       random.shuffle(jobs)
-      jobs = jobs[:300]
+      jobs = jobs[:150]
 
     dl = learn.dls.test_dl(jobs)
     with learn.no_bar(): preds, _, dec_preds = learn.get_preds(dl=dl, with_decoded=True, inner=False)
