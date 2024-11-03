@@ -10,7 +10,7 @@ import time
 import notifications
 import random
 
-vcap = SecurityCapture(f"rtsp://{sys.argv[1]}@192.168.1.8/", 3)
+vcap = SecurityCapture(f"rtsp://{sys.argv[1]}@127.0.0.1:8554/front", 3)
 # vcap = cv2.VideoCapture(0)
 
 
